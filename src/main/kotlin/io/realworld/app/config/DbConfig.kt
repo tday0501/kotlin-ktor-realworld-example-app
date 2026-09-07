@@ -7,7 +7,11 @@ import org.jetbrains.exposed.sql.Database
 
 object DbConfig {
     fun setup(jdbcUrl: String, username: String, password: String) {
-        Server.createPgServer().start()
+        try {
+            Server.createPgServer().start()
+        } catch (ignored: Exception) {
+            // Already running from a previous AppRule / process in this JVM.
+        }
         val config = HikariConfig().also { config ->
             config.jdbcUrl = jdbcUrl
             config.username = username

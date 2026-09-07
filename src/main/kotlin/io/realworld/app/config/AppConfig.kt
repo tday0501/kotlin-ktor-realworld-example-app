@@ -11,6 +11,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.jackson.jackson
 import io.ktor.response.respond
 import io.ktor.routing.Routing
+import io.ktor.routing.route
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.ApplicationEngineFactory
@@ -37,7 +38,7 @@ const val SERVER_PORT = 8080
 @KtorExperimentalAPI
 @EngineAPI
 fun setup(isCio: Boolean = true): BaseApplicationEngine {
-    DbConfig.setup("jdbc:h2:mem:DATABASE_TO_UPPER=false;", "sa", "")
+    DbConfig.setup("jdbc:h2:mem:realworld_${System.nanoTime()};DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1", "sa", "")
     return server(if (isCio) CIO else Netty)
 }
 
@@ -89,9 +90,11 @@ fun Application.mainModule() {
     }
 
     install(Routing) {
-        users(userController)
-        profiles(profileController)
-        articles(articleController, commentController)
-        tags(tagController)
+        route("api") {
+            users(userController)
+            profiles(profileController)
+            articles(articleController, commentController)
+            tags(tagController)
+        }
     }
 }

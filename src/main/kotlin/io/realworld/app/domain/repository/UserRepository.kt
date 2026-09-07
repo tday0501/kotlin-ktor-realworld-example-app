@@ -42,6 +42,10 @@ internal object Follows : Table() {
 
 class UserRepository {
     init {
+        ensureTables()
+    }
+
+    private fun ensureTables() {
         transaction {
             SchemaUtils.create(Users)
             SchemaUtils.create(Follows)
@@ -49,6 +53,7 @@ class UserRepository {
     }
 
     fun findByEmail(email: String): User? {
+        ensureTables()
         return transaction {
             Users.select { Users.email eq email }
                 .map { Users.toDomain(it) }
@@ -65,6 +70,7 @@ class UserRepository {
     }
 
     fun create(user: User): Long? {
+        ensureTables()
         return transaction {
             Users.insertAndGetId { row ->
                 row[email] = user.email
