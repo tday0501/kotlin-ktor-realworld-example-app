@@ -4,7 +4,7 @@ Short record of how agents were used on this exercise — not a transcript. The 
 
 ## Walkthrough recording
 
-(link)
+https://www.tella.tv/video/coding-exercise-walkthrough-ai-agent-workflow-2u7s
 
 ## Harnesses and models
 
