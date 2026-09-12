@@ -3,6 +3,7 @@ package io.realworld.app.domain.repository
 import io.realworld.app.domain.Article
 import io.realworld.app.domain.User
 import io.realworld.app.domain.exceptions.NotFoundException
+import org.jetbrains.exposed.dao.EntityID
 import org.jetbrains.exposed.dao.LongIdTable
 import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.JoinType
@@ -18,6 +19,7 @@ import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.Date
+import java.util.concurrent.atomic.AtomicLong
 
 internal object Articles : LongIdTable() {
     val slug: Column<String> = varchar("slug", 200).uniqueIndex()
@@ -31,7 +33,7 @@ internal object Articles : LongIdTable() {
 
 internal object Favorites : Table() {
     val user: Column<Long> = long("user").primaryKey()
-    val article: Column<Long> = long("article").primaryKey()
+    val article = reference("article", Articles).primaryKey()
 }
 
 class ArticleRepository {
@@ -48,7 +50,7 @@ class ArticleRepository {
 
     fun create(author: User, article: Article): Article {
         ensureTables()
-        val now = System.currentTimeMillis()
+        val now = nextTimestamp()
         val slug = slugify(article.title ?: "")
         val id = transaction {
             Articles.insertAndGetId { row ->
@@ -68,13 +70,14 @@ class ArticleRepository {
         ensureTables()
         val articleId = findIdBySlug(slug) ?: throw NotFoundException("Article not found.")
         transaction {
+            val articleKey = EntityID(articleId, Articles)
             val already = Favorites.select {
-                (Favorites.user eq userId) and (Favorites.article eq articleId)
+                (Favorites.user eq userId) and (Favorites.article eq articleKey)
             }.count() > 0
             if (!already) {
                 Favorites.insert { row ->
                     row[user] = userId
-                    row[article] = articleId
+                    row[article] = articleKey
                 }
             }
         }
@@ -132,7 +135,7 @@ class ArticleRepository {
             .map { Users.toDomain(it) }
             .first()
         val favorited = currentUserId != null && Favorites.select {
-            (Favorites.article eq articleId) and (Favorites.user eq currentUserId)
+            (Favorites.article eq EntityID(articleId, Articles)) and (Favorites.user eq currentUserId)
         }.count() > 0
         return Article(
             slug = row[Articles.slug],
@@ -149,10 +152,17 @@ class ArticleRepository {
     }
 
     companion object {
+        private val lastCreatedAt = AtomicLong(0)
+
         fun slugify(title: String): String {
             return title.trim().lowercase()
                 .replace(Regex("[^a-z0-9]+"), "-")
                 .trim('-')
+        }
+
+        private fun nextTimestamp(): Long {
+            val now = System.currentTimeMillis()
+            return lastCreatedAt.updateAndGet { prev -> if (now > prev) now else prev + 1 }
         }
     }
 }

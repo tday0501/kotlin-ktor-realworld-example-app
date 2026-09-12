@@ -1,5 +1,6 @@
 package io.realworld.app.web.controllers
 
+import com.mashape.unirest.http.Unirest
 import io.realworld.app.domain.Article
 import io.realworld.app.domain.ArticleDTO
 import io.realworld.app.domain.ArticlesDTO
@@ -82,7 +83,6 @@ class ArticlePopularControllerTest {
     fun `popular feed breaks ties with newer createdAt first`() {
         val author = signedIn("author_tie@valid_email.com", "author_tie")
         createArticle(author, "Older tied article")
-        Thread.sleep(10)
         createArticle(author, "Newer tied article")
 
         val response = HttpUtil(appRule.port).get<ArticlesDTO>("/api/articles/feed/popular")
@@ -90,6 +90,25 @@ class ArticlePopularControllerTest {
         assertEquals(HttpStatus.SC_OK, response.status)
         assertEquals(2, response.body.articlesCount)
         assertEquals(listOf("newer-tied-article", "older-tied-article"), response.body.articles.map { it.slug })
+    }
+
+    @Test
+    fun `popular feed rejects a non-integer limit`() {
+        val response = Unirest.get("http://localhost:${appRule.port}/api/articles/feed/popular")
+            .queryString("limit", "abc")
+            .asString()
+
+        assertEquals(HttpStatus.SC_BAD_REQUEST, response.status)
+    }
+
+    @Test
+    fun `favorite unknown article returns not found`() {
+        val author = signedIn("author_missing@valid_email.com", "author_missing")
+        val response = Unirest.post("http://localhost:${appRule.port}/api/articles/missing-article/favorite")
+            .headers(author.headers)
+            .asString()
+
+        assertEquals(HttpStatus.SC_NOT_FOUND, response.status)
     }
 
     private fun signedIn(email: String, username: String): HttpUtil {

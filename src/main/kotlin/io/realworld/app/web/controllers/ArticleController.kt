@@ -7,9 +7,11 @@ import io.ktor.response.respond
 import io.realworld.app.domain.ArticleDTO
 import io.realworld.app.domain.ArticlesDTO
 import io.realworld.app.domain.User
+import io.realworld.app.domain.exceptions.UnauthorizedException
 import io.realworld.app.domain.service.ArticleService
 
 class ArticleController(private val articleService: ArticleService) {
+    // Popular slice only: list, feed, get, update, delete, and unfavorite stay stubbed.
     fun findBy(ctx: ApplicationCall): ArticlesDTO {
         return ArticlesDTO(listOf(), 0)
     }
@@ -19,8 +21,8 @@ class ArticleController(private val articleService: ArticleService) {
     }
 
     suspend fun popular(ctx: ApplicationCall) {
-        val limit = (ctx.request.queryParameters["limit"] ?: "20").toInt()
-        val offset = (ctx.request.queryParameters["offset"] ?: "0").toInt()
+        val limit = parsePageInt(ctx.request.queryParameters["limit"], 20, "limit")
+        val offset = parsePageInt(ctx.request.queryParameters["offset"], 0, "offset")
         val email = ctx.authentication.principal<User>()?.email
         val (articles, count) = articleService.findPopular(limit, offset, email)
         ctx.respond(ArticlesDTO(articles, count))
@@ -32,7 +34,7 @@ class ArticleController(private val articleService: ArticleService) {
 
     suspend fun create(ctx: ApplicationCall) {
         val email = ctx.authentication.principal<User>()?.email
-        require(!email.isNullOrBlank()) { "User not logged." }
+            ?: throw UnauthorizedException("User not logged.")
         val article = ctx.receive<ArticleDTO>().article
         require(
             article != null &&
@@ -55,12 +57,19 @@ class ArticleController(private val articleService: ArticleService) {
 
     suspend fun favorite(ctx: ApplicationCall) {
         val email = ctx.authentication.principal<User>()?.email
-        require(!email.isNullOrBlank()) { "User not logged." }
+            ?: throw UnauthorizedException("User not logged.")
         val slug = ctx.parameters["slug"] ?: throw IllegalArgumentException("Slug is required.")
         ctx.respond(ArticleDTO(articleService.favorite(email, slug)))
     }
 
     fun unfavorite(ctx: ApplicationCall): ArticleDTO {
         return ArticleDTO(null)
+    }
+
+    private fun parsePageInt(raw: String?, default: Int, name: String): Int {
+        if (raw == null) return default
+        val value = raw.toIntOrNull() ?: throw IllegalArgumentException("$name must be an integer.")
+        require(value >= 0) { "$name must be greater than or equal to 0." }
+        return value
     }
 }
